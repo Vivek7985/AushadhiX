@@ -1,0 +1,6 @@
+{
+  "name": "AushadhiX",
+  "description": "Core Pharmacy Inventory, Batch Management, FEFO Expiry & Smart POS System",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

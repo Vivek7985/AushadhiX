@@ -1,0 +1,67 @@
+{
+  "entities": {
+    "product": {
+      "title": "Product",
+      "description": "Pharmacy medicine and healthcare product",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "brand": { "type": "string" },
+        "genericName": { "type": "string" },
+        "category": { "type": "string" },
+        "schedule": { "type": "string" },
+        "dosageForm": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "genericName", "category"]
+    },
+    "batch": {
+      "title": "Batch",
+      "description": "Batch inventory record with prices, expiry, and quantities",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "batchNumber": { "type": "string" },
+        "expiryDate": { "type": "string" },
+        "mrp": { "type": "number" },
+        "purchasePrice": { "type": "number" },
+        "sellingPrice": { "type": "number" },
+        "availableQuantity": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "productId", "batchNumber", "expiryDate"]
+    },
+    "sale": {
+      "title": "Sale",
+      "description": "Point of sale transaction invoice",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "totalAmount": { "type": "number" },
+        "netProfit": { "type": "number" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "invoiceNumber", "totalAmount"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": "product",
+      "description": "Store medicine and product catalog"
+    },
+    "/batches/{batchId}": {
+      "schema": "batch",
+      "description": "Store batch records with pricing and expiry"
+    },
+    "/sales/{saleId}": {
+      "schema": "sale",
+      "description": "Store pharmacy sales and transactions"
+    }
+  }
+}
