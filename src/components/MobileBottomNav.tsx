@@ -4,20 +4,18 @@ import {
   ShoppingCart,
   Pill,
   Boxes,
-  MoreHorizontal,
 } from 'lucide-react';
 import { usePharmacy } from '../context/PharmacyContext';
 
 interface MobileBottomNavProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
-  onOpenMoreMenu: () => void;
+  onOpenMoreMenu?: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   setActiveTab,
-  onOpenMoreMenu,
 }) => {
   const { products, getProductTotalStock } = usePharmacy();
 
@@ -39,7 +37,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   ];
 
   return (
-    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-slate-200 px-2 py-1.5 flex items-center justify-around shadow-lg w-full max-w-full overflow-hidden">
       {items.map((it) => {
         const Icon = it.icon;
         const isActive = activeTab === it.id;
@@ -49,7 +47,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             key={it.id}
             id={`mobile-nav-${it.id}`}
             onClick={() => setActiveTab(it.id)}
-            className={`flex flex-col items-center justify-center py-1 px-3 rounded-xl transition relative min-w-[56px] ${
+            className={`flex flex-col items-center justify-center py-1 px-1.5 rounded-xl transition relative min-w-0 flex-1 max-w-[84px] ${
               isActive
                 ? 'text-emerald-700 font-bold'
                 : 'text-slate-500 hover:text-slate-900 font-medium'
@@ -75,15 +73,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           </button>
         );
       })}
-
-      <button
-        id="mobile-nav-more"
-        onClick={onOpenMoreMenu}
-        className="flex flex-col items-center justify-center py-1 px-3 rounded-xl text-slate-500 hover:text-slate-900 font-medium min-w-[56px]"
-      >
-        <MoreHorizontal className="w-5 h-5 text-slate-400" />
-        <span className="text-[10px] mt-0.5">More</span>
-      </button>
     </nav>
   );
 };

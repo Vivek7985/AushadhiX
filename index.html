@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, shrink-to-fit=no" />
     <title>AushadhiX</title>
     <meta name="description" content="Core Pharmacy Inventory, Batch Management, FEFO Expiry & Smart POS System" />
     <meta name="theme-color" content="#047857" />
@@ -20,6 +20,55 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <script>
+      // Strict zoom prevention for mobile PWA & browsers
+      document.addEventListener('gesturestart', function (e) {
+        e.preventDefault();
+      });
+      document.addEventListener('gesturechange', function (e) {
+        e.preventDefault();
+      });
+      document.addEventListener('gestureend', function (e) {
+        e.preventDefault();
+      });
+      // Prevent multi-touch pinch to zoom
+      document.addEventListener(
+        'touchmove',
+        function (e) {
+          if (e.touches && e.touches.length > 1) {
+            e.preventDefault();
+          }
+        },
+        { passive: false }
+      );
+      // Prevent double-tap zooming on touch screens
+      var lastTouchEnd = 0;
+      document.addEventListener(
+        'touchend',
+        function (e) {
+          var now = Date.now();
+          if (now - lastTouchEnd <= 300) {
+            // Only prevent if not tapping an interactive input/textarea
+            var tag = e.target && e.target.tagName ? e.target.tagName.toLowerCase() : '';
+            if (tag !== 'input' && tag !== 'textarea' && tag !== 'select') {
+              e.preventDefault();
+            }
+          }
+          lastTouchEnd = now;
+        },
+        false
+      );
+      // Prevent Ctrl + Wheel zoom on desktops/trackpads
+      window.addEventListener(
+        'wheel',
+        function (e) {
+          if (e.ctrlKey) {
+            e.preventDefault();
+          }
+        },
+        { passive: false }
+      );
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-800 antialiased selection:bg-emerald-100 selection:text-emerald-900">
     <div id="root"></div>

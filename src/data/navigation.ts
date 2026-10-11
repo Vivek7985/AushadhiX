@@ -13,10 +13,14 @@ import {
   Truck,
   Building2,
   Settings,
+  Store,
   ReceiptText,
   Warehouse,
   PackageCheck,
   LineChart,
+  Percent,
+  FolderTree,
+  ClipboardList,
 } from 'lucide-react';
 
 export interface NavChildItem {
@@ -126,6 +130,13 @@ export const getNavigationGroups = (badges: NavigationBadges = {}): NavParentGro
         shortcut: 'F3',
       },
       {
+        id: 'categories',
+        label: 'Categories & Body Parts',
+        shortLabel: 'Categories',
+        description: 'Manage medicine categories & anatomical organs',
+        icon: FolderTree,
+      },
+      {
         id: 'inventory',
         label: 'Inventory & Batches',
         shortLabel: 'Batches',
@@ -171,6 +182,13 @@ export const getNavigationGroups = (badges: NavigationBadges = {}): NavParentGro
         icon: Truck,
       },
       {
+        id: 'supplier-orders',
+        label: 'Monthly Order List (WhatsApp)',
+        shortLabel: 'Order List',
+        description: 'Monthly supplier order list with WhatsApp text sharing',
+        icon: ClipboardList,
+      },
+      {
         id: 'suppliers',
         label: 'Suppliers & Vendors',
         shortLabel: 'Suppliers',
@@ -186,6 +204,20 @@ export const getNavigationGroups = (badges: NavigationBadges = {}): NavParentGro
     icon: Settings,
     description: 'Pharmacy config, tax & security audit',
     children: [
+      {
+        id: 'business-settings',
+        label: 'Business Settings',
+        shortLabel: 'Business Settings',
+        description: 'Medical store name, address, DL license, store logo & official stamp',
+        icon: Store,
+      },
+      {
+        id: 'gst',
+        label: 'GST Tax Configuration',
+        shortLabel: 'GST Module',
+        description: 'Configure GST slabs (0%, 5%, 12%, 18%, 28%) & tax calculation',
+        icon: Percent,
+      },
       {
         id: 'settings',
         label: 'Settings & Verification',

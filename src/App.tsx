@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
-  ShieldCheck,
-  ChevronDown,
-  ChevronRight,
+  ShoppingCart,
+  Pill,
+  Boxes,
+  TrendingUp,
+  Truck,
+  BarChart3,
+  Settings,
+  LayoutDashboard,
+  Users,
 } from 'lucide-react';
 import { PharmacyProvider, usePharmacy } from './context/PharmacyContext';
 import { Header } from './components/Header';
@@ -19,16 +25,141 @@ import { ExpiryView } from './components/ExpiryView';
 import { StockLedgerView } from './components/StockLedgerView';
 import { ReportsView } from './components/ReportsView';
 import { SettingsView } from './components/SettingsView';
+import { BusinessSettingsView } from './components/BusinessSettingsView';
+import { GSTView } from './components/GSTView';
 import { SuppliersView } from './components/SuppliersView';
 import { CustomersView } from './components/CustomersView';
+import { CategoriesView } from './components/CategoriesView';
+import { SupplierOrderListView } from './components/SupplierOrderListView';
 import { getNavigationGroups, NavParentGroup, NavChildItem } from './data/navigation';
 
+const VALID_TABS = new Set([
+  'dashboard',
+  'insights',
+  'pos',
+  'products',
+  'categories',
+  'inventory',
+  'low-stock',
+  'expiry',
+  'purchases',
+  'supplier-orders',
+  'order-list',
+  'suppliers',
+  'customers',
+  'stock-ledger',
+  'ledger',
+  'reports',
+  'gst',
+  'business-settings',
+  'settings',
+]);
+
+const TAB_NAMES: Record<string, string> = {
+  dashboard: 'Dashboard',
+  insights: 'Business Insights',
+  pos: 'POS Billing',
+  products: 'Products Directory',
+  categories: 'Categories',
+  inventory: 'Inventory & Stock',
+  'low-stock': 'Low Stock Alerts',
+  expiry: 'Expiry Control',
+  purchases: 'Purchases & Goods Receipt',
+  'supplier-orders': 'Supplier Orders',
+  'order-list': 'Supplier Orders',
+  suppliers: 'Suppliers & Vendors',
+  customers: 'Customer Directory',
+  'stock-ledger': 'Stock Ledger Audit',
+  ledger: 'Stock Ledger Audit',
+  reports: 'Sales & Profit Reports',
+  gst: 'GST Tax Rates',
+  'business-settings': 'Business Settings',
+  settings: 'System Settings',
+};
+
+const getInitialTab = (): string => {
+  try {
+    if (typeof window !== 'undefined') {
+      // 1. Check URL hash first
+      const hash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (hash && VALID_TABS.has(hash)) {
+        return hash;
+      }
+      // 2. Check localStorage
+      const savedTab = localStorage.getItem('aushadhix_active_tab');
+      if (savedTab && VALID_TABS.has(savedTab)) {
+        return savedTab;
+      }
+    }
+  } catch (err) {
+    console.error('Error restoring active tab:', err);
+  }
+  return 'dashboard';
+};
+
 const MainApp: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeTab, setActiveTabState] = useState<string>(getInitialTab);
+  const activeTabRef = useRef(activeTab);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  const setActiveTab = (tab: string) => {
+    setActiveTabState(tab);
+    try {
+      localStorage.setItem('aushadhix_active_tab', tab);
+      if (typeof window !== 'undefined') {
+        window.history.replaceState({ tab }, '', `#${tab}`);
+      }
+    } catch {}
+  };
+
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('aushadhix_sidebar_collapsed');
+      if (saved !== null) {
+        return saved === 'true';
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const { products, batches, purchaseOrders, getProductTotalStock, settings } = usePharmacy();
+  const handleToggleSidebar = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('aushadhix_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleSetSidebarCollapsed = (val: boolean) => {
+    setSidebarCollapsed(val);
+    try {
+      localStorage.setItem('aushadhix_sidebar_collapsed', String(val));
+    } catch {}
+  };
+
+  const { products, batches, purchaseOrders, getProductTotalStock, settings, sales } = usePharmacy();
+
+  // Calculate live today's sales metrics for the prominent POS card
+  const now = new Date();
+  const localTodayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const utcTodayStr = now.toISOString().slice(0, 10);
+  const todaySales = (sales || []).filter((s) => {
+    const d = s.dateTime || s.createdAt || '';
+    return d.startsWith(localTodayStr) || d.startsWith(utcTodayStr);
+  });
+  const todaySalesCount = todaySales.length;
+  const todayRevenue = todaySales.reduce(
+    (sum, s) => sum + Number(s.grandTotal || s.totalAmount || 0),
+    0
+  );
 
   // Dynamic badge counts
   const lowStockCount = products.filter((p) => {
@@ -109,6 +240,9 @@ const MainApp: React.FC = () => {
       } else if (e.key === 'F4' || (e.altKey && e.key.toLowerCase() === 'd')) {
         e.preventDefault();
         setActiveTab('dashboard');
+      } else if ((e.ctrlKey || e.altKey) && e.key.toLowerCase() === 'b') {
+        e.preventDefault();
+        handleToggleSidebar();
       }
     };
 
@@ -116,8 +250,50 @@ const MainApp: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Handle URL hash changes and closing mobile navigation drawer on back
+  useEffect(() => {
+    const handlePopState = () => {
+      if (mobileMenuOpen) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace(/^#\/?/, '').trim();
+      if (hash && VALID_TABS.has(hash) && hash !== activeTabRef.current) {
+        setActiveTabState(hash);
+        try {
+          localStorage.setItem('aushadhix_active_tab', hash);
+        } catch {}
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handleHashChange);
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handleHashChange);
+    };
+  }, [mobileMenuOpen]);
+
+  // Lock body scroll when mobile navigation drawer is open
+  useEffect(() => {
+    if (mobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+      document.body.style.touchAction = 'none';
+    } else {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+      document.body.style.touchAction = '';
+    };
+  }, [mobileMenuOpen]);
+
   return (
-    <div className="min-h-screen bg-slate-50 flex text-slate-900 font-sans antialiased">
+    <div className="min-h-screen min-h-[100dvh] w-full max-w-full overflow-x-hidden bg-slate-50 flex text-slate-900 font-sans antialiased">
       {/* Desktop Persistent Sidebar */}
       <Sidebar
         activeTab={activeTab}
@@ -126,19 +302,21 @@ const MainApp: React.FC = () => {
           setMobileMenuOpen(false);
         }}
         collapsed={sidebarCollapsed}
-        setCollapsed={setSidebarCollapsed}
+        setCollapsed={handleSetSidebarCollapsed}
       />
 
       {/* Main Workspace Area */}
       <div
-        className={`flex-1 flex flex-col min-w-0 transition-all duration-300 ${
-          sidebarCollapsed ? 'lg:ml-20' : 'lg:ml-64'
+        className={`flex-1 flex flex-col min-w-0 w-full max-w-full overflow-x-hidden transition-all duration-300 ${
+          sidebarCollapsed ? 'lg:ml-16' : 'lg:ml-80'
         }`}
       >
         {/* Top App Header */}
         <Header
           activeTab={activeTab}
           setActiveTab={setActiveTab}
+          sidebarCollapsed={sidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
           onOpenQuickSale={() => setActiveTab('pos')}
           onOpenAddProduct={() => setActiveTab('products')}
           onOpenNewPO={() => setActiveTab('purchases')}
@@ -147,7 +325,7 @@ const MainApp: React.FC = () => {
         />
 
         {/* Dynamic View Content */}
-        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-8">
+        <main className="flex-1 w-full max-w-full overflow-x-hidden p-3 sm:p-5 lg:p-6 pb-24 lg:pb-8">
           {activeTab === 'dashboard' && (
             <DashboardView
               setActiveTab={setActiveTab}
@@ -166,10 +344,17 @@ const MainApp: React.FC = () => {
           )}
           {activeTab === 'pos' && <POSView />}
           {activeTab === 'products' && <ProductsView />}
+          {activeTab === 'categories' && <CategoriesView />}
           {activeTab === 'inventory' && <InventoryView initialFilter="All" />}
           {activeTab === 'low-stock' && <InventoryView initialFilter="LowStock" />}
           {activeTab === 'expiry' && <ExpiryView />}
           {activeTab === 'purchases' && <PurchasesView />}
+          {(activeTab === 'supplier-orders' || activeTab === 'order-list') && (
+            <SupplierOrderListView
+              onOpenNewPO={() => setActiveTab('purchases')}
+              standalone
+            />
+          )}
           {activeTab === 'suppliers' && (
             <SuppliersView onOpenNewPO={() => setActiveTab('purchases')} />
           )}
@@ -178,6 +363,8 @@ const MainApp: React.FC = () => {
           )}
           {(activeTab === 'stock-ledger' || activeTab === 'ledger') && <StockLedgerView />}
           {activeTab === 'reports' && <ReportsView />}
+          {activeTab === 'gst' && <GSTView />}
+          {activeTab === 'business-settings' && <BusinessSettingsView />}
           {activeTab === 'settings' && <SettingsView />}
         </main>
       </div>
@@ -194,7 +381,7 @@ const MainApp: React.FC = () => {
 
       {/* Mobile Navigation Drawer / Slide-Over Sheet */}
       {mobileMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-50 flex">
+        <div className="lg:hidden fixed inset-0 z-50 flex overflow-hidden max-w-[100vw]">
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
@@ -202,176 +389,240 @@ const MainApp: React.FC = () => {
           />
 
           {/* Drawer content */}
-          <div className="relative w-5/6 max-w-sm bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200">
+          <div className="relative w-[280px] sm:w-[320px] max-w-[85vw] bg-white h-full shadow-2xl flex flex-col z-10 border-r border-slate-200 overflow-hidden animate-in slide-in-from-left duration-200">
             {/* Drawer Header */}
-            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-black text-sm shadow-xs">
+            <div className="px-3.5 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-6 h-6 rounded-lg bg-emerald-600 flex items-center justify-center text-white font-black text-xs shadow-2xs shrink-0">
                   AX
                 </div>
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="font-extrabold text-base tracking-tight text-slate-900">
-                      AushadhiX
-                    </span>
-                    <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
-                      PHARMACY ERP
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-slate-400">Standard Module Menu</p>
+                <div className="min-w-0">
+                  <span className="font-extrabold text-sm tracking-tight text-slate-900 truncate block">
+                    {settings.storeName || 'AushadhiX'}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">Pharmacy Navigation</span>
                 </div>
               </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                title="Close"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Navigation items in Parent-Child Formation */}
-            <div className="flex-1 overflow-y-auto p-3 space-y-3">
-              {groups.map((group) => {
-                const ParentIcon = group.icon;
-                const isExpanded = mobileExpandedGroups[group.id] ?? true;
-                const parentAlertCount = getParentAlertCount(group);
-                const hasActiveChild = group.children.some((c) => c.id === activeTab);
-
-                return (
-                  <div
-                    key={group.id}
-                    className="rounded-xl border border-slate-200/80 bg-slate-50/40 overflow-hidden"
-                  >
-                    {/* Parent Module Header */}
-                    <button
-                      type="button"
-                      onClick={() => toggleMobileGroup(group.id)}
-                      className={`w-full flex items-center justify-between p-2.5 text-left transition ${
-                        hasActiveChild
-                          ? 'bg-emerald-50/70 text-slate-900 font-bold'
-                          : 'hover:bg-slate-100/70 text-slate-700 font-semibold'
+            {/* Prominent POS Billing Card in Mobile Drawer */}
+            <div className="p-3 border-b border-slate-100 bg-slate-50/60 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('pos');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full text-left rounded-2xl p-3 transition-all duration-200 border cursor-pointer relative overflow-hidden group ${
+                  activeTab === 'pos'
+                    ? 'bg-gradient-to-br from-emerald-600 to-teal-700 text-white border-emerald-500 shadow-md shadow-emerald-700/20'
+                    : 'bg-white border-emerald-200/90 text-slate-800 hover:border-emerald-400 shadow-2xs'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                        activeTab === 'pos'
+                          ? 'bg-white/20 text-white shadow-inner'
+                          : 'bg-emerald-600 text-white shadow-xs'
                       }`}
                     >
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs ${
-                            hasActiveChild
-                              ? 'bg-emerald-600 text-white shadow-xs'
-                              : 'bg-white border border-slate-200 text-slate-600'
-                          }`}
-                        >
-                          <ParentIcon className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold truncate text-slate-900">
-                            {group.title}
-                          </div>
-                          {group.categoryTag && (
-                            <span className="text-[9px] font-medium text-slate-400 block">
-                              {group.categoryTag}
-                            </span>
-                          )}
-                        </div>
+                      <ShoppingCart className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div
+                        className={`text-xs font-black tracking-tight truncate leading-tight ${
+                          activeTab === 'pos' ? 'text-white' : 'text-slate-900'
+                        }`}
+                      >
+                        POS Billing & Counter
                       </div>
-
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {parentAlertCount > 0 && (
-                          <span className="bg-rose-100 text-rose-700 text-[10px] font-bold px-1.5 py-0.2 rounded-full border border-rose-200">
-                            {parentAlertCount} alerts
-                          </span>
-                        )}
-                        <span className="text-slate-400">
-                          {isExpanded ? (
-                            <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
-                        </span>
-                      </div>
-                    </button>
-
-                    {/* Child Sub-Options */}
-                    {isExpanded && (
-                      <div className="px-2 pb-2 pt-1 space-y-1 bg-white border-t border-slate-100">
-                        {group.children.map((child: NavChildItem) => {
-                          const ChildIcon = child.icon;
-                          const isActive = activeTab === child.id;
-                          const badgeInfo = getChildBadge(child.id);
-
-                          return (
-                            <button
-                              key={child.id}
-                              id={`mobile-menu-${child.id}`}
-                              onClick={() => {
-                                setActiveTab(child.id);
-                                setMobileMenuOpen(false);
-                              }}
-                              className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-medium transition ${
-                                isActive
-                                  ? 'bg-emerald-600 text-white font-semibold shadow-xs'
-                                  : child.highlight
-                                  ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
-                                  : 'text-slate-700 hover:bg-slate-100'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 truncate">
-                                <ChildIcon
-                                  className={`w-4 h-4 flex-shrink-0 ${
-                                    isActive
-                                      ? 'text-white'
-                                      : child.highlight
-                                      ? 'text-emerald-600'
-                                      : 'text-slate-500'
-                                  }`}
-                                />
-                                <div className="text-left truncate">
-                                  <div className="truncate font-medium">{child.label}</div>
-                                  {child.description && !isActive && (
-                                    <div className="text-[10px] text-slate-400 truncate font-normal">
-                                      {child.description}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
-                                {child.shortcut && !isActive && (
-                                  <span className="text-[9px] font-mono px-1 py-0.2 bg-slate-100 text-slate-500 rounded border border-slate-200">
-                                    {child.shortcut}
-                                  </span>
-                                )}
-
-                                {badgeInfo.count !== undefined && (
-                                  <span
-                                    className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full border ${
-                                      isActive
-                                        ? 'bg-white text-emerald-800 border-transparent'
-                                        : badgeInfo.color
-                                    }`}
-                                  >
-                                    {badgeInfo.count}
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                      <span
+                        className={`text-[10px] font-medium truncate block ${
+                          activeTab === 'pos' ? 'text-emerald-100' : 'text-slate-400'
+                        }`}
+                      >
+                        Fast FEFO Barcode Sale
+                      </span>
+                    </div>
                   </div>
+
+                  <span
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                      activeTab === 'pos'
+                        ? 'bg-white/20 text-white border-white/30'
+                        : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    }`}
+                  >
+                    F1
+                  </span>
+                </div>
+
+                <div
+                  className={`pt-1.5 border-t flex items-center justify-between text-[11px] font-semibold ${
+                    activeTab === 'pos'
+                      ? 'border-white/20 text-emerald-50'
+                      : 'border-slate-100 text-slate-600'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>{todaySalesCount > 0 ? `${todaySalesCount} Bills Today` : 'Counter Ready'}</span>
+                  </div>
+
+                  <span className={activeTab === 'pos' ? 'text-white font-bold' : 'text-emerald-700 font-bold'}>
+                    {todaySalesCount > 0 ? `₹${todayRevenue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}` : 'Start →'}
+                  </span>
+                </div>
+              </button>
+            </div>
+
+            {/* Simple Elegant Navigation Items */}
+            <div className="flex-1 overflow-y-auto px-2.5 py-2 space-y-1 overscroll-contain">
+              <div className="text-[10px] font-bold tracking-wider text-slate-400 uppercase px-2 mb-1 select-none">
+                Menu Options
+              </div>
+              {[
+                {
+                  id: 'dashboard',
+                  label: 'Dashboard',
+                  icon: LayoutDashboard,
+                  color: 'text-emerald-600 bg-emerald-50',
+                },
+                {
+                  id: 'products',
+                  label: 'Products',
+                  icon: Pill,
+                  color: 'text-indigo-600 bg-indigo-50',
+                },
+                {
+                  id: 'categories',
+                  label: 'Categories',
+                  icon: Boxes,
+                  color: 'text-blue-600 bg-blue-50',
+                },
+                {
+                  id: 'inventory',
+                  label: 'Inventory & Stock',
+                  icon: Boxes,
+                  color: 'text-amber-600 bg-amber-50',
+                  badge: lowStockCount > 0 ? `${lowStockCount}` : undefined,
+                  badgeColor: 'bg-amber-100 text-amber-800',
+                },
+                {
+                  id: 'insights',
+                  label: 'Sales & Insights',
+                  icon: TrendingUp,
+                  color: 'text-sky-600 bg-sky-50',
+                },
+                {
+                  id: 'purchases',
+                  label: 'Purchases & PO',
+                  icon: Truck,
+                  color: 'text-teal-600 bg-teal-50',
+                  badge: pendingPOCount > 0 ? `${pendingPOCount}` : undefined,
+                  badgeColor: 'bg-blue-100 text-blue-800',
+                },
+                {
+                  id: 'suppliers',
+                  label: 'Suppliers',
+                  icon: Truck,
+                  color: 'text-orange-600 bg-orange-50',
+                },
+                {
+                  id: 'customers',
+                  label: 'Customers',
+                  icon: Users,
+                  color: 'text-pink-600 bg-pink-50',
+                },
+                {
+                  id: 'reports',
+                  label: 'Reports & Analytics',
+                  icon: BarChart3,
+                  color: 'text-violet-600 bg-violet-50',
+                },
+                {
+                  id: 'gst',
+                  label: 'GST Rates',
+                  icon: BarChart3,
+                  color: 'text-purple-600 bg-purple-50',
+                },
+                {
+                  id: 'business-settings',
+                  label: 'Business Settings',
+                  icon: Settings,
+                  color: 'text-slate-600 bg-slate-100',
+                },
+                {
+                  id: 'settings',
+                  label: 'System Settings',
+                  icon: Settings,
+                  color: 'text-slate-600 bg-slate-100',
+                },
+              ].map((item) => {
+                const ItemIcon = item.icon;
+                const isActive = activeTab === item.id;
+
+                return (
+                  <button
+                    key={item.id}
+                    id={`mobile-menu-${item.id}`}
+                    onClick={() => {
+                      setActiveTab(item.id);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-[11.5px] font-semibold transition-all duration-150 cursor-pointer group active:scale-[0.98] ${
+                      isActive
+                        ? 'bg-emerald-600 text-white shadow-xs shadow-emerald-600/30'
+                        : 'text-slate-700 hover:bg-slate-100/80 hover:text-slate-950'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div
+                        className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 ${
+                          isActive
+                            ? 'bg-white/20 text-white'
+                            : item.color
+                        }`}
+                      >
+                        <ItemIcon className="w-3.5 h-3.5" />
+                      </div>
+                      <span className="truncate">{item.label}</span>
+                    </div>
+
+                    {item.badge && (
+                      <span
+                        className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full transition-colors ${
+                          isActive
+                            ? 'bg-white text-emerald-800'
+                            : item.badgeColor
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    )}
+                  </button>
                 );
               })}
             </div>
 
-            {/* Drawer Footer */}
-            <div className="p-3 border-t border-slate-100 bg-slate-50 text-[11px] text-slate-500">
-              <div className="flex items-center gap-1.5 text-emerald-700 font-semibold mb-0.5">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Pharmacy ERP Architecture</span>
-              </div>
-              <p className="text-[10px] text-slate-400">
-                FEFO Compliance • Batch Tracking • Multi-Unit
-              </p>
+            {/* Simple Drawer Footer */}
+            <div className="p-2 border-t border-slate-100 bg-slate-50/70 shrink-0">
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-1 text-center text-[11px] font-semibold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-md shadow-2xs transition cursor-pointer"
+              >
+                Close Menu
+              </button>
             </div>
           </div>
         </div>

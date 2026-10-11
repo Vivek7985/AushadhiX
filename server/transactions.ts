@@ -44,13 +44,23 @@ export interface ReceivePOInput {
 // 1. ATOMIC TRANSACTION: Process POS Sale
 export async function createSaleTransaction(input: CreateSaleInput) {
   return await (pg as any).transaction(async (tx: any) => {
-    const branchId = input.branchId || 'BRANCH-01';
+    let branchId = input.branchId || 'BRANCH-01';
     const createdBy = input.createdBy || 'Cashier / Pharmacist';
 
-    // Verify branch exists
-    const branchRes = await tx.query('SELECT id, name FROM branches WHERE id = $1', [branchId]);
+    // Verify branch exists or resolve fallback
+    let branchRes = await tx.query('SELECT id, name FROM branches WHERE id = $1', [branchId]);
     if (branchRes.rows.length === 0) {
-      throw new Error(`Branch ${branchId} does not exist in the database.`);
+      const anyB = await tx.query('SELECT id, name FROM branches ORDER BY id ASC LIMIT 1');
+      if (anyB.rows.length > 0) {
+        branchId = anyB.rows[0].id;
+      } else {
+        await tx.query(`
+          INSERT INTO branches (id, name, code, address, phone, is_active)
+          VALUES ('BRANCH-01', 'AushadhiX Central Pharmacy - Store #1', 'CENTRAL-01', '124 Healthcare Hub, Medicity, New Delhi', '+91 11 4567 8900', TRUE)
+          ON CONFLICT (id) DO NOTHING
+        `);
+        branchId = 'BRANCH-01';
+      }
     }
 
     // Verify settings for safeguards
@@ -195,6 +205,31 @@ export async function createSaleTransaction(input: CreateSaleInput) {
     const changeReturned = Math.max(0, amountPaid - totalAmount);
 
     // 9. Insert Sale Header
+    let validCustomerId: string | null = null;
+    if (input.customerId) {
+      try {
+        const custCheck = await tx.query('SELECT id FROM customers WHERE id = $1', [input.customerId]);
+        if (custCheck.rows.length > 0) {
+          validCustomerId = input.customerId;
+        } else {
+          await tx.query(`
+            INSERT INTO customers (id, name, phone, email, address)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (id) DO NOTHING
+          `, [
+            input.customerId,
+            input.customerName || 'Customer',
+            input.customerPhone || 'N/A',
+            null,
+            null
+          ]);
+          validCustomerId = input.customerId;
+        }
+      } catch {
+        validCustomerId = null;
+      }
+    }
+
     await tx.query(`
       INSERT INTO sales (
         id, invoice_number, branch_id, customer_id, customer_name, customer_phone,
@@ -208,7 +243,7 @@ export async function createSaleTransaction(input: CreateSaleInput) {
       saleId,
       invoiceNumber,
       branchId,
-      input.customerId || null,
+      validCustomerId,
       input.customerName,
       input.customerPhone || '',
       input.doctorName || '',
@@ -376,6 +411,151 @@ export async function cancelSaleTransaction(saleId: string, cancelledBy = 'Manag
     return {
       success: true,
       message: `Sale ${sale.invoice_number} successfully cancelled and inventory restored.`
+    };
+  });
+}
+
+// 2b. ATOMIC TRANSACTION: Delete Sale, Purge Invoice & Restore Inventory Stock
+export async function deleteSaleTransaction(saleIdOrInvoice: string, deletedBy = 'Cashier / Admin', fallbackItems: any[] = []) {
+  return await (pg as any).transaction(async (tx: any) => {
+    // 1. Fetch Sale by ID or invoice_number
+    const saleRes = await tx.query(`
+      SELECT * FROM sales 
+      WHERE id = $1 OR invoice_number = $1
+      LIMIT 1
+    `, [saleIdOrInvoice]);
+
+    let saleId = saleIdOrInvoice;
+    let invoiceNumber = saleIdOrInvoice;
+    let saleBranchId = 'BRANCH-01';
+    let customerId: string | null = null;
+    let totalAmount = 0;
+
+    if (saleRes.rows.length > 0) {
+      const sale = saleRes.rows[0];
+      saleId = sale.id;
+      invoiceNumber = sale.invoice_number;
+      saleBranchId = sale.branch_id || 'BRANCH-01';
+      customerId = sale.customer_id;
+      totalAmount = Number(sale.total_amount) || 0;
+    }
+
+    // 2. Fetch Sale Items from DB
+    const itemsRes = await tx.query('SELECT * FROM sale_items WHERE sale_id = $1', [saleId]);
+    let itemsToRestore = itemsRes.rows;
+
+    // If sale_items in DB was 0, use fallbackItems provided from frontend
+    if (itemsToRestore.length === 0 && Array.isArray(fallbackItems) && fallbackItems.length > 0) {
+      itemsToRestore = fallbackItems.map((fi: any) => ({
+        batch_id: fi.batchId || fi.batch_id,
+        product_id: fi.productId || fi.product_id,
+        base_quantity: Number(fi.totalBaseQuantity ?? fi.baseQuantity ?? ((fi.quantityInUnit || fi.quantity || 1) * (fi.conversionFactor || fi.multiplierToBase || 1))),
+        packaging_unit: fi.unitName || fi.packagingUnit || 'Unit',
+      }));
+    }
+
+    const restoredItems: any[] = [];
+
+    // 3. Restore each item's stock in product_batches
+    for (const item of itemsToRestore) {
+      const bId = item.batch_id || item.batchId;
+      const baseQtyToRestore = Number(item.base_quantity) || (Number(item.quantity || 1) * Number(item.conversion_factor || 1));
+
+      if (bId && baseQtyToRestore > 0) {
+        const batchRes = await tx.query('SELECT * FROM product_batches WHERE id = $1', [bId]);
+        if (batchRes.rows.length > 0) {
+          const batch = batchRes.rows[0];
+          const currentStock = Number(batch.available_base_quantity) || 0;
+          const restoredStock = currentStock + baseQtyToRestore;
+
+          await tx.query(`
+            UPDATE product_batches 
+            SET available_base_quantity = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+          `, [restoredStock, batch.id]);
+
+          // Insert inventory movement
+          await tx.query(`
+            INSERT INTO inventory_movements (
+              id, branch_id, product_id, batch_id, movement_type, 
+              quantity_delta, quantity_before, quantity_after, unit, 
+              reference_type, reference_id, notes, performed_by
+            ) VALUES ($1, $2, $3, $4, 'INVOICE_DELETE_RESTORE', $5, $6, $7, $8, 'INVOICE_DELETE', $9, $10, $11)
+          `, [
+            'MOV-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+            saleBranchId,
+            item.product_id || item.productId,
+            batch.id,
+            baseQtyToRestore,
+            currentStock,
+            restoredStock,
+            item.packaging_unit || 'Unit',
+            invoiceNumber,
+            `Stock restitution following invoice deletion: ${invoiceNumber}`,
+            deletedBy
+          ]);
+
+          restoredItems.push({
+            batchId: batch.id,
+            productId: item.product_id || item.productId,
+            restoredQuantity: baseQtyToRestore,
+            newStock: restoredStock,
+          });
+        }
+      }
+    }
+
+    // 4. Reverse customer statistics if sale was assigned to a customer
+    if (customerId) {
+      try {
+        await tx.query(`
+          UPDATE customers
+          SET total_spent = GREATEST(0, total_spent - $1),
+              total_orders = GREATEST(0, total_orders - 1)
+          WHERE id = $2
+        `, [totalAmount, customerId]);
+      } catch (custErr) {
+        console.warn('[deleteSaleTransaction] Customer adjustment notice:', custErr);
+      }
+    }
+
+    // 5. Delete sale items
+    await tx.query('DELETE FROM sale_items WHERE sale_id = $1', [saleId]);
+
+    // 6. Delete sale
+    const deleteRes = await tx.query('DELETE FROM sales WHERE id = $1 OR invoice_number = $1', [saleIdOrInvoice]);
+
+    // 7. Audit log
+    await tx.query(`
+      INSERT INTO audit_logs (id, branch_id, action, module, details, user_name, user_role)
+      VALUES ($1, $2, 'INVOICE_DELETED', 'POS', $3, $4, 'admin')
+    `, [
+      'AUDIT-' + Date.now(),
+      saleBranchId,
+      `Deleted invoice ${invoiceNumber} and restored inventory for ${itemsToRestore.length} items.`,
+      deletedBy
+    ]);
+
+    // 8. Fetch updated batches to return to frontend
+    const updatedBatchesRes = await tx.query(`
+      SELECT b.*, p.name as product_name
+      FROM product_batches b
+      LEFT JOIN products p ON b.product_id = p.id
+      ORDER BY b.expiry_date ASC
+    `);
+
+    return {
+      success: true,
+      deletedCount: deleteRes.rowCount,
+      deletedSaleId: saleId,
+      invoiceNumber,
+      restoredItems,
+      message: `Invoice ${invoiceNumber} successfully deleted from database and inventory restored.`,
+      updatedBatches: updatedBatchesRes.rows.map((b: any) => ({
+        id: b.id,
+        availableBaseQuantity: Number(b.available_base_quantity),
+        available_base_quantity: Number(b.available_base_quantity),
+      })),
     };
   });
 }

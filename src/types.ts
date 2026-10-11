@@ -16,6 +16,24 @@ export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Credit' | 'Mixed';
 
 export type PurchaseOrderStatus = 'Draft' | 'Ordered' | 'PartiallyReceived' | 'Received' | 'Cancelled';
 
+export type DiscountType = 'percentage' | 'fixed';
+
+export interface GSTRate {
+  id: string;
+  name: string; // e.g. "GST 12% (Standard Pharma / Tablets)"
+  rate: number; // e.g. 12
+  cgst: number; // e.g. 6
+  sgst: number; // e.g. 6
+  igst: number; // e.g. 12
+  cgstPercent?: number;
+  sgstPercent?: number;
+  igstPercent?: number;
+  hsnCode?: string; // e.g. "3004"
+  description?: string;
+  isDefault?: boolean;
+  isActive: boolean;
+}
+
 export interface PackagingUnit {
   id: string;
   name: string; // e.g. "Box", "Strip", "Tablet", "Bottle", "Sachet"
@@ -25,6 +43,17 @@ export interface PackagingUnit {
   defaultSellingPrice?: number; // e.g. 120 for strip, 12 for tablet
   defaultPurchasePrice?: number; // e.g. 100 for strip
   profitPercentage?: number;
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string; // e.g. "Ear, Nose & Eye Care", "Gastrointestinal & Antacids"
+  description?: string;
+  icon?: string; // Emoji e.g. '👂', '🫄', '🌡️', '🫁', '🫀', '🧴', '🦴', '💊'
+  defaultBodyPart?: string; // e.g. 'Ear', 'Eye', 'Stomach & Digestion'
+  color?: string; // Theme color badge
+  isDefault?: boolean;
+  isActive?: boolean;
 }
 
 export interface ProductComposition {
@@ -37,13 +66,17 @@ export interface Product {
   name: string; // e.g. "Calpol 500mg Tablet"
   brand: string; // e.g. "GSK"
   manufacturer: string; // e.g. "GlaxoSmithKline Pharmaceuticals"
-  category: string; // "Medicines", "Personal Care", "General Items", etc.
+  category: string; // "Medicines", "Ear, Nose & Eye Care", etc.
+  categoryId?: string; // Associated category ID
   subcategory?: string; // "Tablets", "Syrups", etc.
+  bodyPart?: string; // Target body part e.g. 'Ear', 'Eye', 'Stomach & Digestion', 'Heart & BP'
+  bodyPartIcon?: string; // Emoji representing body part e.g. '👂', '👁️', '🫄', '🫀'
   barcode: string;
   sku: string;
   productCode: string;
   description?: string;
-  image: string;
+  image: string; // Primary/first product image
+  images?: string[]; // Up to 4 product images
   compositions: ProductComposition[]; // for alternative matching
   baseUnit: string; // e.g. "Tablet", "Piece", "ml"
   units: PackagingUnit[]; // Configured packaging hierarchy
@@ -54,8 +87,11 @@ export interface Product {
   requiresPrescription?: boolean;
   hsnCode?: string;
   gstPercent: number; // e.g. 12%
-  purchasePrice?: number; // Cost / Purchase Price
-  sellingPrice?: number; // Selling / Retail Price
+  gstRateId?: string; // Reference to configured GSTRate
+  basePurchasePrice?: number; // Pre-tax cost
+  baseSellingPrice?: number; // Pre-tax selling price
+  purchasePrice?: number; // Cost / Purchase Price (inclusive or final)
+  sellingPrice?: number; // Selling / Retail Price (inclusive or final)
   profitPercentage?: number; // Calculated profit margin %
 }
 
@@ -120,6 +156,43 @@ export interface PurchaseOrderItem {
   expiryDate?: string;
   taxPercent: number;
   totalAmount: number;
+}
+
+export interface SupplierOrderItem {
+  id: string;
+  productId?: string;
+  productName: string;
+  brand?: string;
+  category?: string;
+  unitName: string; // e.g. "Strip", "Bottle", "Box", "Tablet", "Piece", "Vial", "Tube"
+  quantity: number;
+  currentStock?: number;
+  minStockThreshold?: number;
+  purchasePriceEstimate?: number;
+  notes?: string;
+  addedAt: string;
+  isFromLowStock?: boolean;
+}
+
+export type SupplierOrderStatus = 'Draft' | 'Ready' | 'Sent' | 'Received' | 'Cancelled';
+
+export interface SupplierOrderList {
+  id: string;
+  title: string; // e.g. "September 2026 Monthly Order - Mahaveer Medico"
+  monthYear: string; // e.g. "2026-09"
+  supplierId?: string;
+  supplierName: string;
+  supplierPhone?: string;
+  supplierEmail?: string;
+  assignedUser?: string; // User/staff member responsible or creating this draft
+  createdBy?: string;
+  status: SupplierOrderStatus;
+  items: SupplierOrderItem[];
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  lastSharedAt?: string;
+  targetOrderDate?: string;
 }
 
 export interface PurchaseOrder {
@@ -191,8 +264,12 @@ export interface SaleItem {
   costPerBaseUnit: number;
   sellingPricePerUnit: number;
   sellingPricePerBaseUnit: number;
+  discountType?: DiscountType; // 'percentage' | 'fixed'
+  discountValue?: number; // % value (e.g. 10) or ₹ value (e.g. 25)
   discountPercent?: number;
+  discountAmount?: number;
   taxPercent: number;
+  taxAmount?: number;
   grossAmount: number;
   netAmount: number;
   totalCost: number; // totalBaseQuantity * costPerBaseUnit
@@ -210,6 +287,8 @@ export interface Sale {
   doctorName?: string;
   items: SaleItem[];
   subtotal: number;
+  discountType?: DiscountType;
+  discountValue?: number;
   discountAmount: number;
   taxAmount: number;
   grandTotal: number;
@@ -222,6 +301,10 @@ export interface Sale {
   dueAmount?: number;
   cashierName: string;
   notes?: string;
+  isEdited?: boolean;
+  editedAt?: string;
+  editReason?: string;
+  originalGrandTotal?: number;
 }
 
 export interface PriceHistoryEntry {
@@ -264,8 +347,13 @@ export interface StoreSettings {
   address: string;
   phone: string;
   email: string;
-  dlNumber: string; // Drug License number
+  dlNumber: string; // Drug License number (optional, printed on invoice if added)
+  dlNumber2?: string; // Additional Drug License number (optional)
   gstin: string;
+  storeLogo?: string; // Medical store logo (Base64 data or image URL)
+  stampLogo?: string; // Official medical store seal / pharmacist stamp (Base64 data or image URL)
+  invoiceTerms?: string; // Custom footer note or return policy printed on invoices
+  fssaiNumber?: string; // FSSAI registration number (optional)
   expiryWarningDays: number; // 30, 60, or 90
   valuationMethod: 'FEFO' | 'FIFO';
   allowExpiredSale: boolean; // Always false by pharmacy law

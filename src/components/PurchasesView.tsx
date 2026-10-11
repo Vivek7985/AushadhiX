@@ -11,9 +11,11 @@ import {
   Receipt,
   FileCheck,
   Building,
+  ClipboardList,
 } from 'lucide-react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { PurchaseOrder, Product } from '../types';
+import { SupplierOrderListView } from './SupplierOrderListView';
 
 export const PurchasesView: React.FC = () => {
   const {
@@ -24,6 +26,7 @@ export const PurchasesView: React.FC = () => {
     currentRole,
   } = usePharmacy();
 
+  const [purchasesTab, setPurchasesTab] = useState<'grn' | 'order-list'>('grn');
   const [showNewPOModal, setShowNewPOModal] = useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState(suppliers[0]?.id || '');
   const [poNumber, setPoNumber] = useState(`PO-${Date.now().toString().slice(-4)}`);
@@ -96,15 +99,36 @@ export const PurchasesView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 pb-12">
+    <div className="w-full space-y-5 pb-12">
       {/* Top Header */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">Purchases & Goods Receipt</h2>
+          <p className="text-xs text-slate-500">
+            Manage vendor purchase bills, inward batch receipts, and monthly shortage order lists.
+          </p>
         </div>
 
-        <div>
-          {currentRole === 'Admin' || currentRole === 'Manager' ? (
+        <div className="flex items-center gap-2">
+          {purchasesTab === 'grn' ? (
+            <button
+              onClick={() => setPurchasesTab('order-list')}
+              className="flex items-center gap-2 px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+            >
+              <ClipboardList className="w-4 h-4 text-emerald-600" />
+              <span>Monthly Order List (WhatsApp)</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setPurchasesTab('grn')}
+              className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer"
+            >
+              <Truck className="w-4 h-4 text-slate-500" />
+              <span>Back to Inward Purchases</span>
+            </button>
+          )}
+
+          {(currentRole === 'Admin' || currentRole === 'Manager') && (
             <button
               id="new-purchase-order-btn"
               onClick={() => {
@@ -112,16 +136,56 @@ export const PurchasesView: React.FC = () => {
                 setInvoiceNumber(`INV-${Date.now().toString().slice(-4)}`);
                 setShowNewPOModal(true);
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition active:scale-95"
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Purchase / GRN</span>
             </button>
-          ) : null}
+          )}
         </div>
       </div>
 
-      {/* Historical Purchases List */}
+      {/* Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+        <button
+          onClick={() => setPurchasesTab('grn')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            purchasesTab === 'grn'
+              ? 'bg-slate-900 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <Truck className="w-4 h-4" />
+          <span>Inward Receipts & Bills ({purchases.length})</span>
+        </button>
+        <button
+          onClick={() => setPurchasesTab('order-list')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            purchasesTab === 'order-list'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <ClipboardList className="w-4 h-4" />
+          <span>Supplier Order List (WhatsApp)</span>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded font-extrabold ${purchasesTab === 'order-list' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+            Indent
+          </span>
+        </button>
+      </div>
+
+      {purchasesTab === 'order-list' ? (
+        <SupplierOrderListView
+          onOpenNewPO={() => {
+            setPurchasesTab('grn');
+            setPoNumber(`PO-${Date.now().toString().slice(-4)}`);
+            setInvoiceNumber(`INV-${Date.now().toString().slice(-4)}`);
+            setShowNewPOModal(true);
+          }}
+          standalone
+        />
+      ) : (
+      /* Historical Purchases List */
       <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-4 border-b border-slate-100 font-bold text-xs text-slate-900 flex items-center justify-between">
           <span>Completed Goods Receipts & Invoices</span>
@@ -145,14 +209,14 @@ export const PurchasesView: React.FC = () => {
                       <div className="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
                         <span>{po.supplierName}</span>
                         <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                          PO: {po.poNumber}
+                          PO: {po.poNumber || po.orderNumber || po.id}
                         </span>
                         <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full">
-                          Inv: {po.invoiceNumber}
+                          Inv: {po.invoiceNumber || 'N/A'}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        Received on {new Date(po.purchaseDate).toLocaleDateString()} • {po.items.length} product lines
+                        Received on {po.purchaseDate || po.receivedDate || po.orderDate ? new Date(po.purchaseDate || po.receivedDate || po.orderDate!).toLocaleDateString() : 'N/A'} • {po.items?.length || 0} product lines
                       </div>
                     </div>
                   </div>
@@ -160,14 +224,14 @@ export const PurchasesView: React.FC = () => {
                   <div className="text-right">
                     <div className="text-[10px] text-slate-400">Total Purchase Value</div>
                     <div className="text-base font-extrabold text-slate-900">
-                      {po.totalAmount.toFixed(2)}
+                      ₹{Number(po.totalAmount ?? po.grandTotal ?? 0).toFixed(2)}
                     </div>
                   </div>
                 </div>
 
                 {/* Sub-items in purchase */}
                 <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs">
-                  {po.items.map((it, idx) => (
+                  {(po.items || []).map((it, idx) => (
                     <div key={idx} className="bg-white p-2 rounded-lg border border-slate-200/80">
                       <div className="font-bold text-slate-900 truncate">{it.productName}</div>
                       <div className="text-[11px] text-slate-500 flex justify-between mt-1">
@@ -175,8 +239,8 @@ export const PurchasesView: React.FC = () => {
                         <span>Exp: {it.expiryDate}</span>
                       </div>
                       <div className="text-[11px] text-emerald-800 font-semibold flex justify-between mt-0.5">
-                        <span>Qty: {it.quantityInUnit} {it.unitName} ({it.totalBaseQuantity} base)</span>
-                        <span>{it.purchasePricePerUnit}/unit</span>
+                        <span>Qty: {it.quantityInUnit || it.orderedUnitQuantity || 1} {it.unitName} ({it.totalBaseQuantity || it.orderedBaseQuantity || 1} base)</span>
+                        <span>₹{Number(it.purchasePricePerUnit || 0).toFixed(2)}/unit</span>
                       </div>
                     </div>
                   ))}
@@ -186,11 +250,12 @@ export const PurchasesView: React.FC = () => {
           )}
         </div>
       </div>
+      )}
 
       {/* CREATE PURCHASE / GOODS RECEIPT MODAL */}
       {showNewPOModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-3 overflow-y-auto overflow-x-hidden">
+          <div className="bg-white rounded-3xl max-w-4xl w-full max-w-full shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="p-4 bg-emerald-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-sm">
                 <FileCheck className="w-5 h-5" />
@@ -201,7 +266,7 @@ export const PurchasesView: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmitGRN} className="p-6 space-y-5 text-xs max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSubmitGRN} className="p-4 sm:p-6 space-y-5 text-xs max-h-[80vh] overflow-y-auto overflow-x-hidden">
               {/* Header Info */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                 <div>

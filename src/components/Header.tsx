@@ -11,7 +11,8 @@ import {
   Menu,
   CheckCircle2,
   X,
-  HelpCircle,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { Role } from '../types';
@@ -25,6 +26,8 @@ interface HeaderProps {
   onSelectProductFromSearch: (productId: string) => void;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  sidebarCollapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -34,6 +37,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMobileMenu,
   onSelectProductFromSearch,
   setActiveTab,
+  sidebarCollapsed = false,
+  onToggleSidebar,
 }) => {
   const {
     settings,
@@ -72,8 +77,8 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-4 lg:px-8 py-2.5">
       <div className="flex items-center justify-between gap-3">
-        {/* Left: Mobile hamburger & Store Title */}
-        <div className="flex items-center gap-3">
+        {/* Left: Mobile hamburger, Desktop sidebar toggle & Store Title */}
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             id="mobile-nav-toggle"
             onClick={onOpenMobileMenu}
@@ -83,13 +88,42 @@ export const Header: React.FC<HeaderProps> = ({
             <Menu className="w-5 h-5" />
           </button>
 
+          {onToggleSidebar && (
+            <button
+              id="desktop-sidebar-toggle"
+              type="button"
+              onClick={onToggleSidebar}
+              className="hidden lg:flex items-center justify-center p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition active:scale-95"
+              title={
+                sidebarCollapsed
+                  ? 'Expand navigation sidebar (Alt+B)'
+                  : 'Collapse navigation sidebar to maximize screen space (Alt+B)'
+              }
+              aria-label="Toggle navigation sidebar"
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen className="w-5 h-5 text-slate-700" />
+              ) : (
+                <PanelLeftClose className="w-5 h-5 text-slate-600" />
+              )}
+            </button>
+          )}
+
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-black text-lg shadow-sm shadow-emerald-200">
-              AX
-            </div>
+            {settings.storeLogo ? (
+              <img
+                src={settings.storeLogo}
+                alt={settings.storeName || 'Store Logo'}
+                className="h-9 w-auto max-w-[40px] object-contain rounded-lg"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 flex items-center justify-center text-white font-black text-lg shadow-sm shadow-emerald-200">
+                {settings.storeName ? settings.storeName.slice(0, 2).toUpperCase() : 'AX'}
+              </div>
+            )}
             <div>
-              <h1 className="text-base lg:text-lg font-bold text-slate-900 tracking-tight leading-none">
-                AushadhiX
+              <h1 className="text-base lg:text-lg font-bold text-slate-900 tracking-tight leading-none truncate max-w-[200px] sm:max-w-[320px]">
+                {settings.storeName || 'AushadhiX'}
               </h1>
             </div>
           </div>
@@ -151,7 +185,7 @@ export const Header: React.FC<HeaderProps> = ({
                       >
                         <div className="flex items-center gap-2.5">
                           <img
-                            src={prod.image}
+                            src={(prod.images && prod.images[0]) || prod.image || 'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?w=400&auto=format&fit=crop&q=60'}
                             alt={prod.name}
                             className="w-8 h-8 rounded-lg object-cover border border-slate-200 flex-shrink-0"
                             referrerPolicy="no-referrer"
@@ -190,29 +224,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Actions: User Guide, Quick Add, Notifications, Role Switcher */}
         <div className="flex items-center gap-2">
-          {/* Help & Operations Guide Modal Trigger */}
-          <button
-            id="user-guide-btn"
-            onClick={() => setShowUserGuide(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-          >
-            <HelpCircle className="w-3.5 h-3.5 text-slate-600" />
-            <span className="hidden sm:inline">Guide & Help</span>
-          </button>
-
           {/* Quick Action Button */}
           <div className="relative">
             <button
               id="quick-add-btn"
               onClick={() => setShowQuickMenu(!showQuickMenu)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-slate-700 hover:text-emerald-700 hover:bg-slate-100 rounded-lg text-xs font-medium transition active:scale-95"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+              <Plus className="w-4 h-4 text-emerald-600" />
               <span className="hidden sm:inline">Quick Action</span>
             </button>
 
             {showQuickMenu && (
-              <div className="absolute right-0 top-full mt-1.5 w-48 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 text-xs">
+              <div className="absolute right-0 top-full mt-1.5 w-48 max-w-[calc(100vw-2rem)] bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-1.5 text-xs">
                 <button
                   onClick={() => {
                     setShowQuickMenu(false);
@@ -265,7 +289,7 @@ export const Header: React.FC<HeaderProps> = ({
 
             {/* Notifications Drawer */}
             {showNotifications && (
-              <div className="absolute right-0 top-full mt-1.5 w-80 sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden text-xs">
+              <div className="absolute right-0 top-full mt-1.5 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden text-xs">
                 <div className="p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                   <div className="font-bold text-slate-800 flex items-center gap-1.5">
                     <Bell className="w-3.5 h-3.5 text-emerald-600" />

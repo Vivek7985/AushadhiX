@@ -12,9 +12,12 @@ import {
   CornerUpLeft,
   Tag,
   Search,
+  Eye,
+  X,
 } from 'lucide-react';
 import { usePharmacy } from '../context/PharmacyContext';
 import { ProductBatch, Product } from '../types';
+import { HorizontalSlidingChips } from './HorizontalSlidingChips';
 
 export const ExpiryView: React.FC = () => {
   const {
@@ -32,6 +35,13 @@ export const ExpiryView: React.FC = () => {
     batch: ProductBatch;
     product: Product;
     action: 'dispose' | 'return' | 'discount';
+  } | null>(null);
+  const [inspectingBatch, setInspectingBatch] = useState<{
+    batch: ProductBatch;
+    product: Product;
+    daysLeft: number;
+    isExpired: boolean;
+    valueAtRisk: number;
   } | null>(null);
 
   const [discountPercent, setDiscountPercent] = useState(25);
@@ -121,7 +131,7 @@ export const ExpiryView: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 pb-12">
+    <div className="w-full space-y-5 pb-12">
       {/* Header */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -192,136 +202,238 @@ export const ExpiryView: React.FC = () => {
           />
         </div>
 
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+        <HorizontalSlidingChips id="expiry-filter-chips" ariaLabel="Expiry filters" className="max-w-full sm:max-w-md">
           {[
             { id: 'all', label: 'All Tracked' },
             { id: 'expired', label: `Expired (${expiredBatches.length})` },
             { id: '30days', label: `&le; 30 Days (${expiring30.length})` },
             { id: '60days', label: `31-60 Days (${expiring60.length})` },
             { id: '90days', label: `61-90 Days (${expiring90.length})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3 py-1.5 rounded-xl font-semibold transition whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-              dangerouslySetInnerHTML={{ __html: tab.label }}
-            />
-          ))}
-        </div>
+          ].map((tab) => {
+            const isSelected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                data-selected={isSelected ? 'true' : 'false'}
+                aria-selected={isSelected}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`h-[30px] flex items-center px-3 rounded-xl font-semibold transition whitespace-nowrap text-xs active:scale-95 cursor-pointer ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+                dangerouslySetInnerHTML={{ __html: tab.label }}
+              />
+            );
+          })}
+        </HorizontalSlidingChips>
       </div>
 
-      {/* Batch Expiry Table */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-              <tr>
-                <th className="p-3.5">Medicine Details</th>
-                <th className="p-3.5">Batch Number</th>
-                <th className="p-3.5">Expiry Date</th>
-                <th className="p-3.5">Days Left</th>
-                <th className="p-3.5 text-right">Remaining Stock</th>
-                <th className="p-3.5 text-right">Cost Value At Risk</th>
-                <th className="p-3.5">Supplier</th>
-                <th className="p-3.5 text-center">Expiry Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {displayed.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-400">
-                    No batches match the selected expiry criteria.
-                  </td>
-                </tr>
-              ) : (
-                displayed.map(({ batch, product, daysLeft, isExpired, valueAtRisk }) => (
-                  <tr key={batch.id} className="hover:bg-slate-50/70 transition">
-                    <td className="p-3.5">
-                      <div className="font-bold text-slate-900">{product?.name}</div>
-                      <div className="text-[11px] text-slate-500">
-                        Brand: {product?.brand} • Base Unit: {product?.baseUnit}
+      {/* Batch Expiry Tiles View (Mobile-First, No Sliders) */}
+      <div>
+        {displayed.length === 0 ? (
+          <div className="bg-white rounded-3xl border border-slate-200 p-12 text-center text-slate-400">
+            No batches match the selected expiry criteria.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+            {displayed.map((item) => {
+              const { batch, product, daysLeft, isExpired, valueAtRisk } = item;
+              return (
+                <div
+                  key={batch.id}
+                  className="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-2xs hover:border-slate-300 transition flex flex-col justify-between gap-2.5"
+                >
+                  {/* Top: Medicine & Badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h4
+                        className="font-bold text-slate-900 text-sm truncate cursor-pointer hover:text-emerald-700 transition"
+                        onClick={() => setInspectingBatch(item as any)}
+                        title={product?.name}
+                      >
+                        {product?.name || 'Medicine'}
+                      </h4>
+                      <div className="text-[11px] text-slate-400 truncate">
+                        Brand: <strong className="text-slate-600">{product?.brand || 'Generic'}</strong>
                       </div>
-                    </td>
+                    </div>
+                    {isExpired ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 shrink-0">
+                        EXPIRED
+                      </span>
+                    ) : daysLeft <= 30 ? (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 shrink-0">
+                        {daysLeft}d left
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                        {daysLeft}d left
+                      </span>
+                    )}
+                  </div>
 
-                    <td className="p-3.5 font-mono font-bold text-slate-800">
-                      {batch.batchNumber}
-                    </td>
-
-                    <td className="p-3.5 font-semibold">
-                      <span className={isExpired ? 'text-rose-600 font-bold' : daysLeft <= 30 ? 'text-amber-600 font-bold' : 'text-slate-800'}>
+                  {/* Primary Info Tile Grid */}
+                  <div className="grid grid-cols-2 gap-2 bg-slate-50/80 p-2.5 rounded-xl text-xs">
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Batch #</span>
+                      <span className="font-mono font-bold text-slate-900 truncate block">
+                        {batch.batchNumber}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Expiry Date</span>
+                      <span className={`font-semibold block ${isExpired ? 'text-rose-600 font-bold' : daysLeft <= 30 ? 'text-amber-600 font-bold' : 'text-slate-700'}`}>
                         {batch.expiryDate}
                       </span>
-                    </td>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Available Stock</span>
+                      <span className="font-bold text-slate-800 block">
+                        {batch.availableBaseQuantity} {product?.baseUnit || 'units'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 text-[10px] block">Value at Risk</span>
+                      <span className="font-bold text-purple-700 block">
+                        ₹{Number(valueAtRisk || 0).toFixed(0)}
+                      </span>
+                    </div>
+                  </div>
 
-                    <td className="p-3.5">
+                  {/* Actions Row */}
+                  <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setInspectingBatch(item as any)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-600 hover:text-emerald-700 bg-slate-50 hover:bg-emerald-50/60 px-2.5 py-1 rounded-lg border border-slate-200 transition"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Details</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
                       {isExpired ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
-                          EXPIRED ({Math.abs(daysLeft)}d ago)
-                        </span>
-                      ) : daysLeft <= 30 ? (
-                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                          {daysLeft} days remaining
-                        </span>
+                        <button
+                          onClick={() => setSelectedActionBatch({ batch, product: product!, action: 'dispose' })}
+                          className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Dispose</span>
+                        </button>
                       ) : (
-                        <span className="text-slate-600 font-medium">{daysLeft} days</span>
-                      )}
-                    </td>
-
-                    <td className="p-3.5 text-right font-extrabold text-slate-900">
-                      {batch.availableBaseQuantity} {product?.baseUnit}s
-                    </td>
-
-                    <td className="p-3.5 text-right font-bold text-purple-700">
-                      {Number(valueAtRisk || 0).toFixed(2)}
-                    </td>
-
-                    <td className="p-3.5 text-slate-600 truncate max-w-[140px]">
-                      {batch.supplierName}
-                    </td>
-
-                    <td className="p-3.5 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        {isExpired ? (
+                        <>
                           <button
-                            onClick={() => setSelectedActionBatch({ batch, product: product!, action: 'dispose' })}
-                            className="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
+                            onClick={() => setSelectedActionBatch({ batch, product: product!, action: 'discount' })}
+                            className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
+                            title="Set promotional discount"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>Dispose & Write-off</span>
+                            <Tag className="w-3.5 h-3.5" />
+                            <span>Discount</span>
                           </button>
-                        ) : (
-                          <>
-                            <button
-                              onClick={() => setSelectedActionBatch({ batch, product: product!, action: 'discount' })}
-                              className="px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
-                              title="Set promotional discount to sell before expiry"
-                            >
-                              <Tag className="w-3.5 h-3.5" />
-                              <span>Discount</span>
-                            </button>
-                            <button
-                              onClick={() => setSelectedActionBatch({ batch, product: product!, action: 'return' })}
-                              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
-                              title="Return batch to supplier"
-                            >
-                              <CornerUpLeft className="w-3.5 h-3.5" />
-                              <span>Return</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                          <button
+                            onClick={() => setSelectedActionBatch({ batch, product: product!, action: 'return' })}
+                            className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold flex items-center gap-1 transition"
+                            title="Return to supplier"
+                          >
+                            <CornerUpLeft className="w-3.5 h-3.5" />
+                            <span>Return</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+
+      {/* INSPECT BATCH DETAILS MODAL */}
+      {inspectingBatch && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 bg-slate-800 text-white flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-sm">Batch Expiry Details</h3>
+                <p className="text-[11px] text-slate-300">Complete batch history and valuation</p>
+              </div>
+              <button
+                onClick={() => setInspectingBatch(null)}
+                className="text-white/80 hover:text-white p-1 rounded-lg hover:bg-slate-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-3.5 text-xs text-slate-700">
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1.5">
+                <div className="text-sm font-bold text-slate-900">{inspectingBatch.product?.name}</div>
+                <div className="text-slate-500">
+                  Brand: {inspectingBatch.product?.brand || '—'} • Category: {inspectingBatch.product?.category || '—'}
+                </div>
+                {inspectingBatch.product?.composition?.saltName && (
+                  <div className="text-[11px] text-emerald-700 font-medium">
+                    Salt: {inspectingBatch.product.composition.saltName} {inspectingBatch.product.composition.strength}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Batch Number</span>
+                  <span className="font-mono font-bold text-slate-900">{inspectingBatch.batch.batchNumber}</span>
+                </div>
+                <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Expiry Status</span>
+                  <span className={inspectingBatch.isExpired ? 'text-rose-600 font-bold' : 'text-amber-600 font-bold'}>
+                    {inspectingBatch.batch.expiryDate} ({inspectingBatch.daysLeft}d)
+                  </span>
+                </div>
+                <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Available Stock</span>
+                  <span className="font-bold text-slate-900">
+                    {inspectingBatch.batch.availableBaseQuantity} {inspectingBatch.product?.baseUnit}s
+                  </span>
+                </div>
+                <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Value at Risk</span>
+                  <span className="font-bold text-purple-700">₹{Number(inspectingBatch.valueAtRisk || 0).toFixed(2)}</span>
+                </div>
+                <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Purchase Cost</span>
+                  <span className="font-semibold text-slate-800">
+                    ₹{Number(inspectingBatch.batch.purchasePricePerBaseUnit || 0).toFixed(2)}/{inspectingBatch.product?.baseUnit}
+                  </span>
+                </div>
+                <div className="bg-slate-50/70 p-2.5 rounded-xl border border-slate-100">
+                  <span className="text-[10px] text-slate-400 block font-bold uppercase">Selling Price</span>
+                  <span className="font-semibold text-emerald-700">
+                    ₹{Number(inspectingBatch.batch.sellingPricePerBaseUnit || 0).toFixed(2)}/{inspectingBatch.product?.baseUnit}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="text-[10px] text-slate-400 block font-bold uppercase mb-0.5">Supplier</span>
+                <span className="font-medium text-slate-800">{inspectingBatch.batch.supplierName || 'Not recorded'}</span>
+              </div>
+
+              <div className="pt-2 flex items-center justify-end">
+                <button
+                  type="button"
+                  onClick={() => setInspectingBatch(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ACTION MODAL (Dispose, Return, Discount) */}
       {selectedActionBatch && (
@@ -357,7 +469,7 @@ export const ExpiryView: React.FC = () => {
 
               {selectedActionBatch.action === 'dispose' && (
                 <div className="p-3 bg-rose-50 text-rose-800 rounded-xl border border-rose-200 leading-relaxed text-[11px]">
-                  This will deduct all <strong>{selectedActionBatch.batch.availableBaseQuantity} units</strong> as a regulatory safe disposal. A permanent stock ledger audit entry will be recorded with cost write-off of <strong>{(selectedActionBatch.batch.availableBaseQuantity * selectedActionBatch.batch.purchasePricePerBaseUnit).toFixed(2)}</strong>.
+                  This will deduct all <strong>{selectedActionBatch.batch.availableBaseQuantity} units</strong> as a regulatory safe disposal. A permanent stock ledger audit entry will be recorded with cost write-off of <strong>₹{Number((selectedActionBatch.batch.availableBaseQuantity || 0) * Number(selectedActionBatch.batch.purchasePricePerBaseUnit || 0)).toFixed(2)}</strong>.
                 </div>
               )}
 
@@ -381,7 +493,7 @@ export const ExpiryView: React.FC = () => {
                     </div>
                   </div>
                   <div className="text-[11px] text-slate-500">
-                    Current Selling Price: {selectedActionBatch.batch.sellingPricePerBaseUnit.toFixed(2)} &rarr; New Promotional Price: {(selectedActionBatch.batch.sellingPricePerBaseUnit * (1 - discountPercent / 100)).toFixed(2)}
+                    Current Selling Price: ₹{Number(selectedActionBatch.batch.sellingPricePerBaseUnit || 0).toFixed(2)} &rarr; New Promotional Price: ₹{Number(Number(selectedActionBatch.batch.sellingPricePerBaseUnit || 0) * (1 - discountPercent / 100)).toFixed(2)}
                   </div>
                 </div>
               )}

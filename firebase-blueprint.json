@@ -48,6 +48,44 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "invoiceNumber", "totalAmount"]
+    },
+    "setting": {
+      "title": "StoreSettings",
+      "description": "Store settings and business information",
+      "type": "object",
+      "properties": {
+        "storeName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "address": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "dlNumber": { "type": "string" },
+        "dlNumber2": { "type": "string" },
+        "gstin": { "type": "string" },
+        "fssaiNumber": { "type": "string" },
+        "invoiceTerms": { "type": "string" },
+        "storeLogo": { "type": "string" },
+        "stampLogo": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "supplier_order_list": {
+      "title": "SupplierOrderList",
+      "description": "Monthly medicine shortage list and supplier WhatsApp order",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "monthYear": { "type": "string" },
+        "supplierId": { "type": "string" },
+        "supplierName": { "type": "string" },
+        "supplierPhone": { "type": "string" },
+        "status": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "supplierName", "status"]
     }
   },
   "firestore": {
@@ -62,6 +100,14 @@
     "/sales/{saleId}": {
       "schema": "sale",
       "description": "Store pharmacy sales and transactions"
+    },
+    "/settings/{settingId}": {
+      "schema": "setting",
+      "description": "Store settings and business information"
+    },
+    "/supplier_order_lists/{orderListId}": {
+      "schema": "supplier_order_list",
+      "description": "Store monthly supplier order lists"
     }
   }
 }

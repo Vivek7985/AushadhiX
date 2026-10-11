@@ -48,8 +48,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onOpenNewPO }) => 
     );
   });
 
-  const totalPurchases = suppliers.reduce((sum, s) => sum + s.totalPurchases, 0);
-  const totalPendingBalance = suppliers.reduce((sum, s) => sum + s.pendingBalance, 0);
+  const totalPurchases = suppliers.reduce((sum, s) => sum + Number(s.totalPurchases || 0), 0);
+  const totalPendingBalance = suppliers.reduce((sum, s) => sum + Number(s.pendingBalance || 0), 0);
 
   const handleCreateSupplier = (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,7 +78,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onOpenNewPO }) => 
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-5 pb-12">
+    <div className="w-full space-y-5 pb-12">
       {/* Header */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -115,13 +115,13 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onOpenNewPO }) => 
 
         <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-xs">
           <div className="text-[10px] sm:text-[11px] font-bold text-emerald-700 truncate">Cumulative Procurements</div>
-          <div className="mt-0.5 text-xs sm:text-base font-bold text-emerald-600 truncate">{totalPurchases.toLocaleString()}</div>
+          <div className="mt-0.5 text-xs sm:text-base font-bold text-emerald-600 truncate">{(totalPurchases ?? 0).toLocaleString()}</div>
           <div className="text-[9px] sm:text-[10px] text-slate-400 mt-0.5 truncate">Total purchases</div>
         </div>
 
         <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 shadow-xs">
           <div className="text-[10px] sm:text-[11px] font-bold text-amber-700 truncate">Pending Payables</div>
-          <div className="mt-0.5 text-xs sm:text-base font-bold text-amber-600 truncate">{totalPendingBalance.toLocaleString()}</div>
+          <div className="mt-0.5 text-xs sm:text-base font-bold text-amber-600 truncate">{(totalPendingBalance ?? 0).toLocaleString()}</div>
           <div className="text-[9px] sm:text-[10px] text-amber-700 font-medium mt-0.5 truncate">Outstanding vendor credit</div>
         </div>
       </div>
@@ -195,8 +195,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onOpenNewPO }) => 
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                 <div>
                   <div className="text-[10px] text-slate-400 font-medium">Pending Balance</div>
-                  <div className={`font-bold ${sup.pendingBalance > 0 ? 'text-amber-600' : 'text-slate-700'}`}>
-                    {sup.pendingBalance.toLocaleString()}
+                  <div className={`font-bold ${Number(sup.pendingBalance || 0) > 0 ? 'text-amber-600' : 'text-slate-700'}`}>
+                    {Number(sup.pendingBalance || 0).toLocaleString()}
                   </div>
                 </div>
 
@@ -217,8 +217,8 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onOpenNewPO }) => 
 
       {/* Add Supplier Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto overflow-x-hidden">
+          <div className="bg-white rounded-3xl max-w-md w-full max-w-full shadow-2xl overflow-hidden border border-slate-200 my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="px-5 py-4 bg-emerald-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-2 font-bold text-sm">
                 <Building2 className="w-4 h-4" />
@@ -233,7 +233,7 @@ export const SuppliersView: React.FC<SuppliersViewProps> = ({ onOpenNewPO }) => 
               </button>
             </div>
 
-            <form onSubmit={handleCreateSupplier} className="p-5 space-y-3.5 text-xs max-h-[82vh] overflow-y-auto">
+            <form onSubmit={handleCreateSupplier} className="p-4 sm:p-5 space-y-3.5 text-xs max-h-[82vh] overflow-y-auto overflow-x-hidden">
               {/* Primary essentials: Name & Phone */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">

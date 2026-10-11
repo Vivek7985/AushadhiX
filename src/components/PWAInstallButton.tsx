@@ -7,8 +7,8 @@ export const PWAInstallButton: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [installing, setInstalling] = useState(false);
 
-  // Deployed public URL for APK packaging
-  const appUrl = 'https://ais-pre-zxngrjzmuleqjry4gfv33s-941192969868.asia-east1.run.app';
+  // Current public app origin or fallback for APK packaging
+  const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://aushadhix.app';
   const pwaBuilderUrl = `https://www.pwabuilder.com/reportcard?site=${encodeURIComponent(appUrl)}`;
 
   const handleInstallClick = async () => {
