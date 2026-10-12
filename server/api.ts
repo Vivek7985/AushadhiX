@@ -757,10 +757,9 @@ apiRouter.post('/sales/sync', async (req, res) => {
         savedCount++;
         savedSales.push(s);
       }
-    }
 
-    res.json({ success: true, savedCount, sales: savedSales });
-  } catch (error: any) {
+      res.json({ success: true, savedCount, sales: savedSales });
+    } catch (error: any) {
     console.error('[API POST /sales/sync] Error:', error.message);
     res.status(500).json({ error: error.message });
   }

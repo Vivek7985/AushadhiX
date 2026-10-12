@@ -1,5 +1,5 @@
-import { Product, ProductBatch, Supplier, Customer, Sale, StockLedgerEntry, PurchaseOrder, StoreSettings, GSTRate, ProductCategory, SupplierOrderList } from '../types';
-import { initialCategoriesData } from './bodyParts';
+import { Product, ProductBatch, Supplier, Customer, Sale, StockLedgerEntry, PurchaseOrder, StoreSettings, GSTRate, ProductCategory, SupplierOrderList } from '../types.ts';
+import { initialCategoriesData } from './bodyParts.ts';
 
 export const initialCategories: ProductCategory[] = initialCategoriesData.map((cat, idx) => ({
   ...cat,
